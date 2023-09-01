@@ -1,0 +1,89 @@
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: postgresql-post-data
+  labels:
+    type: local
+spec:
+  storageClassName: manual
+  capacity:
+    storage: 10Gi
+  accessModes:
+    - ReadWriteOnce
+  hostPath:
+    path: "/data/poebos/post-psql"
+
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: postgres-post-volume-claim
+spec:
+  storageClassName: manual
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 10Gi
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: postgres-post-secret
+  labels:
+    app: postgres-post
+data:
+  POSTGRES_DB: post
+  POSTGRES_USER: postgres
+  POSTGRES_PASSWORD: password
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: postgres-post
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: postgres-post
+  template:
+    metadata:
+      labels:
+        app: postgres-post
+    spec:
+      securityContext:
+        runAsUser: 0
+      containers:
+        - name: postgres-post
+          image: postgres:15.3
+          imagePullPolicy: "IfNotPresent"
+          ports:
+            - containerPort: 5432
+          envFrom:
+            - configMapRef:
+                name: postgres-post-secret
+          volumeMounts:
+            - mountPath: /var/lib/postgresql/data
+              name: postgres-post-data
+      volumes:
+        - name: postgres-post-data
+          persistentVolumeClaim:
+            claimName: postgres-post-volume-claim
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: postgres-post
+  name: postgres-post
+spec:
+  ports:
+    - port: 5432
+      protocol: TCP
+      targetPort: 5432
+  selector:
+    app: postgres-post
+  type: LoadBalancer

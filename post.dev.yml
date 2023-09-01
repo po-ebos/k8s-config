@@ -1,0 +1,60 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: post
+  name: post
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: post
+  strategy:
+    type: RollingUpdate
+  template:
+    metadata:
+      labels:
+        app: post
+    spec:
+      containers:
+        - image: denisratenok/post
+          name: post
+          envFrom:
+            - configMapRef:
+                name: post
+          #          - secretRef:
+          #              name: rater
+          ports:
+            - containerPort: 8081
+          readinessProbe:
+            httpGet:
+              path: /actuator/health
+              port: 8081
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: post
+data:
+  KEYCLOAK_ISSUER_URI: http://keycloak:8080/realms/poebos
+  POSTGRES_URL: jdbc:postgresql://postgres-post:5432/post
+  POSTGRES_USERNAME: postgres
+  POSTGRES_PASSWORD: password
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: post
+  name: post
+spec:
+  ports:
+    - port: 8081
+      protocol: TCP
+      targetPort: 8081
+  selector:
+    app: post
+  type: LoadBalancer
+
